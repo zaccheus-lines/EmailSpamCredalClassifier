@@ -41,6 +41,6 @@ Contributions to this project are welcome. Please fork the repository and submit
 For any queries or collaborations, feel free to contact me at zaccheus.lines@hotmail.com
 
 ## Acknowledgements
-Special thanks to my dissertation supervisor, Prof. , and the Durham University Mathematics department for their support and guidance throughout this project.
+Special thanks to my dissertation supervisor, Prof. Matthias Troffaes , and the Durham University Mathematics department for their support and guidance throughout this project.
 
 

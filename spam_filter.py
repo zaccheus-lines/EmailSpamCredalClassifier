@@ -3,17 +3,16 @@ import email
 from email.parser import Parser
 import os
 from bs4 import BeautifulSoup
+import time
+import re
 
-# Function to read all txt files in a folder and return a DataFrame
-def read_folder(folder_path):
-    data = []
-    for file in os.listdir(folder_path):
-        #if file.endswith(".txt"): 
-        file_path = os.path.join(folder_path, file)
-        with open(file_path, 'r', encoding='ISO-8859-1') as f:
-            content = f.read()
-            data.append(content)
-    return pd.DataFrame(data, columns=['email_content'])
+start_time = time.time()
+
+def safe_decode(payload, encoding='ISO-8859-1'):
+    try:
+        return payload.decode(encoding)
+    except UnicodeDecodeError:
+        return payload.decode(encoding, errors='ignore')
 
 def parse_email(email_text):
     # Parse the email
@@ -30,10 +29,10 @@ def parse_email(email_text):
     if msg.is_multipart():
         for part in msg.walk():
             if part.get_content_type() == 'text/plain' or part.get_content_type() == 'text/html':
-                payload = part.get_payload(decode=True).decode()
+                payload = safe_decode(part.get_payload(decode=True))
                 break
     else:
-        payload_ = msg.get_payload(decode=True).decode('ISO-8859-1')
+        payload = safe_decode(msg.get_payload(decode=True))
 
     # Parse HTML content to extract text if it's HTML
     if 'html' in content_type_:
@@ -41,6 +40,10 @@ def parse_email(email_text):
         text_content = soup.get_text()
     else:
         text_content = payload
+
+    text_content = re.sub(r'[^a-zA-Z0-9]', ' ', text_content)  # Replace with space
+    text_content = re.sub(r'\s+', ' ', text_content).strip()  # Replace multiple spaces with a single space
+    text_content = text_content.lower()
 
     # Create a DataFrame
     df = pd.DataFrame({
@@ -51,6 +54,21 @@ def parse_email(email_text):
     })
 
     return df
+
+# Function to read all txt files in a folder and return a DataFrame
+def read_folder(folder_path):
+    data = []
+    for file in os.listdir(folder_path):
+        file_path = os.path.join(folder_path, file)
+        try:
+            with open(file_path, 'r', encoding='ISO-8859-1') as f:
+                content = f.read()
+                data.append(content)
+        except Exception as e:
+            print(f"Error reading {file_path}: {e}")
+    return pd.DataFrame(data, columns=['email_content'])
+
+
 
 # Paths to the folders
 hard_spam_path = 'SpamCorpus/spam'
@@ -77,3 +95,6 @@ parsed_rows = corpus.iloc[:10]['email_content'].apply(parse_email)
 concatenated_df = pd.concat(parsed_rows.tolist())
 
 print(concatenated_df)
+
+elapsed = time.time() - start_time
+print(f"Time elapsed: {elapsed} seconds")

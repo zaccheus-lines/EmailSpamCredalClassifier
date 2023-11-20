@@ -69,10 +69,11 @@ ham['label'] = 'ham'
 
 # Combine all data into a single DataFrame
 corpus = pd.concat([hard_spam, easy_spam, ham])
-dfs_to_concat =[]
-for index, row in corpus.iterrows():
-    dfs_to_concat.append(parse_email(row['email_content']))
 
-concatenated_df = pd.concat(dfs_to_concat)
+# Apply the parse_email function to the 'email_content' column of the first 10 rows
+parsed_rows = corpus.iloc[:10]['email_content'].apply(parse_email)
+
+# Concatenate the results
+concatenated_df = pd.concat(parsed_rows.tolist())
 
 print(concatenated_df)

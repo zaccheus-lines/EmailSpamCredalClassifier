@@ -14,12 +14,12 @@ def safe_decode(payload, encoding='ISO-8859-1'):
     except UnicodeDecodeError:
         return payload.decode(encoding, errors='ignore')
 
-def parse_email(email_text):
+def parse_email(email_text, label):
     # Parse the email
     msg = Parser().parsestr(email_text)
 
     # Extract details
-    from_ = msg['Return-Path']
+    from_ = msg['Return-Path'] or msg['From'] or msg['Sender']
     subject_ = msg['subject']
     date_ = msg['date']
     content_type_ = msg.get_content_type()
@@ -50,7 +50,8 @@ def parse_email(email_text):
         'From': [from_],
         'Subject': [subject_],
         'Date': [date_],
-        'Content': [text_content]
+        'Content': [text_content],
+        'Label': [label]
     })
 
     return df
@@ -71,25 +72,25 @@ def read_folder(folder_path):
 
 
 # Paths to the folders
-hard_spam_path = 'SpamCorpus/spam'
-easy_spam_path = 'SpamCorpus/easy_ham'
-ham_path = 'SpamCorpus/hard_ham'
+spam_path = 'SpamCorpus/spam'
+easy_ham_path = 'SpamCorpus/easy_ham'
+hard_ham_path = 'SpamCorpus/hard_ham'
 
 # Reading each folder
-hard_spam = read_folder(hard_spam_path)
-easy_spam = read_folder(easy_spam_path)
-ham = read_folder(ham_path)
+hard_spam = read_folder(hard_ham_path)
+easy_ham = read_folder(easy_ham_path)
+hard_ham = read_folder(hard_ham_path)
 
 # Optionally, add a label column
 hard_spam['label'] = 'hard_spam'
-easy_spam['label'] = 'easy_spam'
-ham['label'] = 'ham'
+easy_ham['label'] = 'easy_ham'
+hard_ham['label'] = 'ham'
 
 # Combine all data into a single DataFrame
-corpus = pd.concat([hard_spam, easy_spam, ham])
+corpus = pd.concat([hard_spam, easy_ham, hard_ham])
 
 # Apply the parse_email function to the 'email_content' column of the first 10 rows
-parsed_rows = corpus.iloc[:10]['email_content'].apply(parse_email)
+parsed_rows = corpus.iloc[:10].apply(lambda row: parse_email(row['email_content'], row['label']), axis=1)
 
 # Concatenate the results
 concatenated_df = pd.concat(parsed_rows.tolist())

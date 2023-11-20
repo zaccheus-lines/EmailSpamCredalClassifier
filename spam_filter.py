@@ -5,6 +5,7 @@ import os
 from bs4 import BeautifulSoup
 import time
 import re
+from sklearn.feature_extraction.text import CountVectorizer
 
 start_time = time.time()
 
@@ -13,6 +14,13 @@ def safe_decode(payload, encoding='ISO-8859-1'):
         return payload.decode(encoding)
     except UnicodeDecodeError:
         return payload.decode(encoding, errors='ignore')
+
+def preprocess(text):
+    # Lowercasing, removing non-alphabetic characters.
+    text = text.lower()
+    text = re.sub(r'[^a-zA-Z]', ' ', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
 
 def parse_email(email_text, label):
     # Parse the email
@@ -40,10 +48,10 @@ def parse_email(email_text, label):
         text_content = soup.get_text()
     else:
         text_content = payload
+    
+    text_content= preprocess(text_content)
 
-    text_content = re.sub(r'[^a-zA-Z0-9]', ' ', text_content)  # Replace with space
-    text_content = re.sub(r'\s+', ' ', text_content).strip()  # Replace multiple spaces with a single space
-    text_content = text_content.lower()
+
 
     # Create a DataFrame
     df = pd.DataFrame({
@@ -90,12 +98,23 @@ hard_ham['label'] = 'ham'
 corpus = pd.concat([hard_spam, easy_ham, hard_ham])
 
 # Apply the parse_email function to the 'email_content' column of the first 10 rows
-parsed_rows = corpus.iloc[:10].apply(lambda row: parse_email(row['email_content'], row['label']), axis=1)
+parsed_rows = corpus.iloc[:1000].apply(lambda row: parse_email(row['email_content'], row['label']), axis=1)
 
 # Concatenate the results
 concatenated_df = pd.concat(parsed_rows.tolist())
 
-print(concatenated_df)
+# Vectorize the preprocessed text
+vectorizer = CountVectorizer(analyzer='word', binary=True)
+
+X = vectorizer.fit_transform(concatenated_df['Content'])
+
+# Convert to DataFrame for better readability
+binary_df = pd.DataFrame(X.toarray(), columns=vectorizer.get_feature_names_out())
+
+# Optionally, you can concatenate this binary_df with the original DataFrame
+final_df = pd.concat([concatenated_df.reset_index(drop=True), binary_df], axis=1)
+
+print(final_df)
 
 elapsed = time.time() - start_time
 print(f"Time elapsed: {elapsed} seconds")

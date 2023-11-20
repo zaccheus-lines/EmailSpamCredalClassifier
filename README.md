@@ -3,7 +3,7 @@
 ## Introduction
 This repository contains the source code and documentation for my dissertation project on email spam filtering using Naive Credal Classifiers. This project aims to explore advanced techniques in spam detection and provide a robust solution to email spam.
 
-#Project Overview
+# Project Overview
 The project employs Naive Credal Classifiers, a sophisticated approach in machine learning, to effectively distinguish between spam and non-spam emails. This technique is chosen for its ability to handle uncertainty and provide more reliable classifications in ambiguous situations, which are common in spam detection.
 
 

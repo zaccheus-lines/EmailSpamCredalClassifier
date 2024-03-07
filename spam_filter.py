@@ -1,11 +1,15 @@
 import pandas as pd
-import email
+import numpy as np
 from email.parser import Parser
 import os
 from bs4 import BeautifulSoup
 import time
 import re
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.model_selection import train_test_split
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+
 
 start_time = time.time()
 
@@ -89,32 +93,46 @@ hard_spam = read_folder(hard_ham_path)
 easy_ham = read_folder(easy_ham_path)
 hard_ham = read_folder(hard_ham_path)
 
-# Optionally, add a label column
-hard_spam['label'] = 'hard_spam'
-easy_ham['label'] = 'easy_ham'
+# Add a label column
+hard_spam['label'] = 'spam'
+easy_ham['label'] = 'ham'
 hard_ham['label'] = 'ham'
 
 # Combine all data into a single DataFrame
 corpus = pd.concat([hard_spam, easy_ham, hard_ham])
 
 # Apply the parse_email function to the 'email_content' column of the first 10 rows
-parsed_rows = corpus.iloc[:1000].apply(lambda row: parse_email(row['email_content'], row['label']), axis=1)
+parsed_rows = corpus.apply(lambda row: parse_email(row['email_content'], row['label']), axis=1)
 
 # Concatenate the results
 concatenated_df = pd.concat(parsed_rows.tolist())
-
+print(concatenated_df)
 # Vectorize the preprocessed text
 vectorizer = CountVectorizer(analyzer='word', binary=True)
 
 X = vectorizer.fit_transform(concatenated_df['Content'])
+y = concatenated_df['Label']
 
-# Convert to DataFrame for better readability
-binary_df = pd.DataFrame(X.toarray(), columns=vectorizer.get_feature_names_out())
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, random_state=42)
 
-# Optionally, you can concatenate this binary_df with the original DataFrame
-final_df = pd.concat([concatenated_df.reset_index(drop=True), binary_df], axis=1)
+nb_classifier = MultinomialNB()
 
-print(final_df)
+# 3. Train the classifier
+nb_classifier.fit(X_train, y_train)
 
+# 4. Make predictions on the test set
+y_pred = nb_classifier.predict(X_test)
+
+# 5. Evaluate the model
+accuracy = accuracy_score(y_test, y_pred)
+conf_matrix = confusion_matrix(y_test, y_pred)
+report = classification_report(y_test, y_pred)
+
+print(f'Accuracy: {accuracy}')
+print(f'Confusion Matrix:\n{conf_matrix}')
+print(f'Classification Report:\n{report}')
+
+word_counts = np.array(X.sum(axis=0)).flatten()
+print(word_counts)
 elapsed = time.time() - start_time
 print(f"Time elapsed: {elapsed} seconds")

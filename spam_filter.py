@@ -9,6 +9,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+from NCC import NaiveCredalClassifier
 
 
 start_time = time.time()
@@ -99,7 +100,7 @@ easy_ham['label'] = 'ham'
 hard_ham['label'] = 'ham'
 
 # Combine all data into a single DataFrame
-corpus = pd.concat([hard_spam, easy_ham, hard_ham])
+corpus = pd.concat([hard_spam, easy_ham])
 
 # Apply the parse_email function to the 'email_content' column of the first 10 rows
 parsed_rows = corpus.apply(lambda row: parse_email(row['email_content'], row['label']), axis=1)
@@ -113,9 +114,9 @@ vectorizer = CountVectorizer(analyzer='word', binary=True)
 X = vectorizer.fit_transform(concatenated_df['Content'])
 y = concatenated_df['Label']
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, random_state=42)
-
-nb_classifier = MultinomialNB()
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=39)
+'''
+nb_classifier = MultinomialNB(alpha=0.75)
 
 # 3. Train the classifier
 nb_classifier.fit(X_train, y_train)
@@ -133,6 +134,40 @@ print(f'Confusion Matrix:\n{conf_matrix}')
 print(f'Classification Report:\n{report}')
 
 word_counts = np.array(X.sum(axis=0)).flatten()
-print(word_counts)
+print(word_counts)'''
+
+ncc = NaiveCredalClassifier()
+test = ncc.fit(X_train, y_train)
+y_pred = ncc.predict(X_test,'ham','spam')
+
+def calculate_accuracy(y_true, y_pred):
+    correct = 0
+    total = 0
+
+    for true, pred in zip(y_true, y_pred):
+        if pred is not None:  # Only consider non-None predictions
+            total += 1
+            if true == pred:
+                correct += 1
+
+    if total > 0:
+        accuracy = correct / total
+    else:
+        accuracy = 0  # Handle case where all predictions are None
+    
+    return accuracy
+
+# Assuming y_test holds the true labels for your test set
+accuracy = calculate_accuracy(y_test[0:10], y_pred)
+print("Accuracy (excluding 'None' predictions):", accuracy)
+
+
+
+
+'''
+# 5. Evaluate the model
+accuracy = accuracy_score(y_test[0:10], y_pred)
+conf_matrix = confusion_matrix(y_test[0:10], y_pred)
+report = classification_report(y_test[0:10], y_pred)
 elapsed = time.time() - start_time
-print(f"Time elapsed: {elapsed} seconds")
+print(f"Time elapsed: {elapsed} seconds")'''

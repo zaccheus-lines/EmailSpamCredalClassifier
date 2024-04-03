@@ -2,6 +2,7 @@ import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.preprocessing import LabelEncoder
 from scipy.optimize import minimize
+from scipy.sparse import csr_matrix
 
 class NaiveCredalClassifier(BaseEstimator, ClassifierMixin):
     def __init__(self, alpha=1.0):
@@ -14,6 +15,8 @@ class NaiveCredalClassifier(BaseEstimator, ClassifierMixin):
         self.C = None
         self.label_encoder_ = None
         self.word_counts_per_class={}
+        self.epsilon = 1e-10
+        self.s = 1
 
     def fit(self, X, y):
         """
@@ -34,47 +37,41 @@ class NaiveCredalClassifier(BaseEstimator, ClassifierMixin):
         
             word_counts = np.array(X_c.sum(axis=0)).flatten()
             self.word_counts_per_class[c] = word_counts
+            print(word_counts.size)
 
         return self
 
     def inf(self, x, row, c1, c2):
-        q = self.k * np.log((self.n_c[c2] + x) / (self.n_c[c1] + (1 - x)))
+        q = self.k * np.log((self.n_c[c2] + x) / (self.n_c[c1] + self.s+(1 - x)))
         prod = 0
         for i in range(self.k):
-            if row[i][c1] != 0:
-                prod += np.log((row[i][c1])) - np.log((row[i][c2] + x))
+            prod += np.log((row[c1][i])+self.epsilon) - np.log((row[c2][i] + x))
         return (q + prod)  # Negate if you're maximizing
 
+ 
     def predict(self, X, c1, c2):
         m, n = X.shape
+        print(X)
+        print(m,n)
         predictions = []  # Array to store predictions for each row
-        
-        for i in range(20):  # Loop over all rows
-            row_vectors = []
-            current_row_vector = []
-            
-            for j in range(n):
-                n_i = {}
-                
-                for c in self.C:
-                    if X[i, j] == 1:
-                        n_i[c] = self.word_counts_per_class[c][j]
-                    else:
-                        n_i[c] = self.n_c[c] - self.word_counts_per_class[c][j]
+        classes = [c1, c2]
+        for i in range(100):  # Loop over all rows
+            row_array = X[i, :].toarray().flatten()
+            print(row_array,i)
 
-                current_row_vector.append(n_i)
-            
-            row_vectors.append(current_row_vector)
+            n_i = {}
+            for c in classes:
+                a = self.word_counts_per_class[c]*row_array
+                b = (self.n_c[c] - self.word_counts_per_class[c])*(1-row_array)
+                n_i[c] =a+b
 
-            classes = [c1, c2]
             for attempt in range(2):  # Allows up to two attempts
-                for row in row_vectors:
-                    # Optimize 'inf' for the current row using the current classes
-                    res = minimize(self.inf, x0=0.5, args=(row, classes[0], classes[1]), bounds=[(0.1, 0.9)])
-                    optimal_x = res.x
+                # Optimize 'inf' for the current row using the current classes
+                res = minimize(self.inf, x0=0.5, args=(n_i, classes[0], classes[1]), bounds=[(0.1, 0.9)])
+                optimal_x = res.x
 
-                    # Use optimal_x to calculate the optimized 'inf' value for the row
-                    optimized_inf = self.inf(optimal_x, row, classes[0], classes[1])
+                # Use optimal_x to calculate the optimized 'inf' value for the row
+                optimized_inf = self.inf(optimal_x, n_i, classes[0], classes[1])
 
                 # Check the condition and assign the predicted class to the row
                 if optimized_inf >= np.log(1):

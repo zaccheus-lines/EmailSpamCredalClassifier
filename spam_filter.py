@@ -114,11 +114,11 @@ vectorizer = CountVectorizer(analyzer='word', binary=True)
 X = vectorizer.fit_transform(concatenated_df['Content'])
 y = concatenated_df['Label']
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=39)
-'''
-nb_classifier = MultinomialNB(alpha=0.75)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=1,stratify = y)
 
-# 3. Train the classifier
+nb_classifier = MultinomialNB(alpha=0)
+
+# 3. Train the classifier``
 nb_classifier.fit(X_train, y_train)
 
 # 4. Make predictions on the test set
@@ -134,12 +134,12 @@ print(f'Confusion Matrix:\n{conf_matrix}')
 print(f'Classification Report:\n{report}')
 
 word_counts = np.array(X.sum(axis=0)).flatten()
-print(word_counts)'''
+print(word_counts)
 
 ncc = NaiveCredalClassifier()
 test = ncc.fit(X_train, y_train)
 y_pred = ncc.predict(X_test,'ham','spam')
-
+print(y_pred,y_test)
 def calculate_accuracy(y_true, y_pred):
     correct = 0
     total = 0
@@ -158,10 +158,30 @@ def calculate_accuracy(y_true, y_pred):
     return accuracy
 
 # Assuming y_test holds the true labels for your test set
-accuracy = calculate_accuracy(y_test[0:10], y_pred)
+accuracy = calculate_accuracy(y_test, y_pred)
 print("Accuracy (excluding 'None' predictions):", accuracy)
 
+import numpy as np
 
+def extended_confusion_matrix(y_true, y_pred, labels):
+    num_classes = 2
+    # Initialize the confusion matrix with an extra row and column for 'None' predictions
+    cm = np.zeros((num_classes + 1, num_classes + 1), dtype=int)
+    
+    # Map labels to indices including 'None'
+    label_to_index = {label: index for index, label in enumerate(labels)}
+    label_to_index[None] = num_classes  # 'None' label index
+    
+    # Populate the confusion matrix
+    for true, pred in zip(y_true, y_pred):
+        true_index = label_to_index.get(true, num_classes)  # Handle unseen labels as 'None'
+        pred_index = label_to_index.get(pred, num_classes)  # Handle 'None' predictions
+        cm[true_index, pred_index] += 1
+    
+    return cm
+
+cm = extended_confusion_matrix(y_test, y_pred,['ham','spam'])
+print("Confusion Matrix:", cm)
 
 
 '''

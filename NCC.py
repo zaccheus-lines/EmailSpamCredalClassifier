@@ -15,9 +15,16 @@ class NaiveCredalClassifier(BaseEstimator, ClassifierMixin):
         self.C = None
         self.label_encoder_ = None
         self.word_counts_per_class={}
-        self.epsilon = 1e-10
+        self.epsilon = 0.5
         self.s = 1
 
+    def inf(self, x, row, c1, c2):
+        q = (self.k-1) * np.log((self.n_c[c2] + x) / (self.n_c[c1] + self.s+(1 - x)))
+        prod = 0
+        for i in range(self.k):
+            prod += np.log((row[c1][i])+self.epsilon) - np.log((row[c2][i] + x))
+        return (q + prod)
+    
     def fit(self, X, y):
         """
         Fit the Naive Credal model according to the given training data.
@@ -37,25 +44,14 @@ class NaiveCredalClassifier(BaseEstimator, ClassifierMixin):
         
             word_counts = np.array(X_c.sum(axis=0)).flatten()
             self.word_counts_per_class[c] = word_counts
-            print(word_counts.size)
 
         return self
 
-    def inf(self, x, row, c1, c2):
-        q = self.k * np.log((self.n_c[c2] + x) / (self.n_c[c1] + self.s+(1 - x)))
-        prod = 0
-        for i in range(self.k):
-            prod += np.log((row[c1][i])+self.epsilon) - np.log((row[c2][i] + x))
-        return (q + prod)  # Negate if you're maximizing
-
- 
     def predict(self, X, c1, c2):
         m, n = X.shape
-        print(X)
-        print(m,n)
-        predictions = []  # Array to store predictions for each row
+        predictions = [] 
         classes = [c1, c2]
-        for i in range(100):  # Loop over all rows
+        for i in range(m):
             row_array = X[i, :].toarray().flatten()
             print(row_array,i)
 
@@ -65,24 +61,22 @@ class NaiveCredalClassifier(BaseEstimator, ClassifierMixin):
                 b = (self.n_c[c] - self.word_counts_per_class[c])*(1-row_array)
                 n_i[c] =a+b
 
-            for attempt in range(2):  # Allows up to two attempts
-                # Optimize 'inf' for the current row using the current classes
-                res = minimize(self.inf, x0=0.5, args=(n_i, classes[0], classes[1]), bounds=[(0.1, 0.9)])
+            for attempt in range(2):  
+                # Optimise 'inf' for the current row using the current classes
+                res = minimize(self.inf, x0=(self.s/2), args=(n_i, classes[0], classes[1]), bounds=[(self.epsilon, self.s*(1-self.epsilon))])
                 optimal_x = res.x
 
                 # Use optimal_x to calculate the optimized 'inf' value for the row
-                optimized_inf = self.inf(optimal_x, n_i, classes[0], classes[1])
+                optimised_inf = self.inf(optimal_x, n_i, classes[0], classes[1])
 
                 # Check the condition and assign the predicted class to the row
-                if optimized_inf >= np.log(1):
-                    predictions.append(classes[0])  # Add the prediction for this row
-                    break  # Exit the attempt loop since we have a prediction
+                if optimised_inf >= np.log(1):
+                    predictions.append(classes[0])
+                    break 
                 else:
                     # Swap classes for the next attempt
                     classes.reverse()
             else:
-                # If neither class met the condition after all attempts, handle accordingly
-                # For example, append None or a default class to predictions
                 predictions.append(None)
 
         return np.array(predictions)  # Return an array of predictions for all rows

@@ -1,193 +1,127 @@
 import pandas as pd
-import numpy as np
-from email.parser import Parser
 import os
+import re
+from email.parser import Parser
 from bs4 import BeautifulSoup
 import time
-import re
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.model_selection import train_test_split
-from sklearn.naive_bayes import MultinomialNB
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+from sklearn.naive_bayes import MultinomialNB
 from NCC import NaiveCredalClassifier
 
-
-start_time = time.time()
-
 def safe_decode(payload, encoding='ISO-8859-1'):
+    """Safely decode the payload with the given encoding."""
     try:
         return payload.decode(encoding)
     except UnicodeDecodeError:
         return payload.decode(encoding, errors='ignore')
 
+def read_folder(folder_path):
+    """Read all txt files in the given folder and return their content in a DataFrame."""
+    data = []
+    for file in os.listdir(folder_path):
+        with open(os.path.join(folder_path, file), 'r', encoding='ISO-8859-1') as f:
+            data.append({'email_content': f.read()})
+    return pd.DataFrame(data)
+
 def preprocess(text):
-    # Lowercasing, removing non-alphabetic characters.
+    """Preprocess text by lowercasing and removing non-alphabetic characters."""
     text = text.lower()
     text = re.sub(r'[^a-zA-Z]', ' ', text)
     text = re.sub(r'\s+', ' ', text).strip()
     return text
 
 def parse_email(email_text, label):
-    # Parse the email
+    """Parse email content and return a DataFrame with extracted information."""
     msg = Parser().parsestr(email_text)
-
-    # Extract details
-    from_ = msg['Return-Path'] or msg['From'] or msg['Sender']
-    subject_ = msg['subject']
-    date_ = msg['date']
-    content_type_ = msg.get_content_type()
-    payload = msg.get_payload()
-
-    # Get the email body
+    content_type = msg.get_content_type()
+    payload = msg.get_payload(decode=True)
     if msg.is_multipart():
         for part in msg.walk():
-            if part.get_content_type() == 'text/plain' or part.get_content_type() == 'text/html':
+            if part.get_content_type() in ['text/plain', 'text/html']:
                 payload = safe_decode(part.get_payload(decode=True))
                 break
     else:
-        payload = safe_decode(msg.get_payload(decode=True))
-
-    # Parse HTML content to extract text if it's HTML
-    if 'html' in content_type_:
-        soup = BeautifulSoup(payload, 'lxml')
-        text_content = soup.get_text()
-    else:
-        text_content = payload
-    
-    text_content= preprocess(text_content)
-
-
-
-    # Create a DataFrame
-    df = pd.DataFrame({
-        'From': [from_],
-        'Subject': [subject_],
-        'Date': [date_],
+        payload = safe_decode(payload)
+    text_content = BeautifulSoup(payload, 'lxml').get_text() if 'html' in content_type else payload
+    text_content = preprocess(text_content)
+    return pd.DataFrame({
+        'From': [msg['Return-Path'] or msg['From'] or msg['Sender']],
+        'Subject': [msg['subject']],
+        'Date': [msg['date']],
         'Content': [text_content],
         'Label': [label]
     })
 
-    return df
+def prepare_data(easy_ham_path, hard_ham_path, spam_path):
+    """Prepare the dataset by reading emails, parsing, and vectorising the content."""
+    # Read and label the datasets from specified folders
+    easy_ham_emails = read_folder(easy_ham_path).assign(label='ham')
+    hard_ham_emails = read_folder(hard_ham_path).assign(label='ham')
+    spam_emails = read_folder(spam_path).assign(label='spam')
 
-# Function to read all txt files in a folder and return a DataFrame
-def read_folder(folder_path):
-    data = []
-    for file in os.listdir(folder_path):
-        file_path = os.path.join(folder_path, file)
-        try:
-            with open(file_path, 'r', encoding='ISO-8859-1') as f:
-                content = f.read()
-                data.append(content)
-        except Exception as e:
-            print(f"Error reading {file_path}: {e}")
-    return pd.DataFrame(data, columns=['email_content'])
+    # Combine all emails into a single DataFrame
+    all_emails = pd.concat([easy_ham_emails, hard_ham_emails, spam_emails])
 
+    # Parse emails
+    parsed_emails = all_emails.apply(lambda row: parse_email(row['email_content'], row['label']), axis=1)
+    df = pd.concat(parsed_emails.tolist())
 
+    # Vsctorise the email content
+    vectoriser = CountVectorizer(analyzer='word', binary=True)
+    X = vectoriser.fit_transform(df['Content'])
+    y = df['Label']
 
-# Paths to the folders
-spam_path = 'SpamCorpus/spam'
-easy_ham_path = 'SpamCorpus/easy_ham'
-hard_ham_path = 'SpamCorpus/hard_ham'
+    return train_test_split(X, y, test_size=0.1, random_state=10, stratify=y)
 
-# Reading each folder
-hard_spam = read_folder(hard_ham_path)
-easy_ham = read_folder(easy_ham_path)
-hard_ham = read_folder(hard_ham_path)
-
-# Add a label column
-hard_spam['label'] = 'spam'
-easy_ham['label'] = 'ham'
-hard_ham['label'] = 'ham'
-
-# Combine all data into a single DataFrame
-corpus = pd.concat([hard_spam, easy_ham])
-
-# Apply the parse_email function to the 'email_content' column of the first 10 rows
-parsed_rows = corpus.apply(lambda row: parse_email(row['email_content'], row['label']), axis=1)
-
-# Concatenate the results
-concatenated_df = pd.concat(parsed_rows.tolist())
-print(concatenated_df)
-# Vectorize the preprocessed text
-vectorizer = CountVectorizer(analyzer='word', binary=True)
-
-X = vectorizer.fit_transform(concatenated_df['Content'])
-y = concatenated_df['Label']
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=1,stratify = y)
-
-nb_classifier = MultinomialNB(alpha=0)
-
-# 3. Train the classifier``
-nb_classifier.fit(X_train, y_train)
-
-# 4. Make predictions on the test set
-y_pred = nb_classifier.predict(X_test)
-
-# 5. Evaluate the model
-accuracy = accuracy_score(y_test, y_pred)
-conf_matrix = confusion_matrix(y_test, y_pred)
-report = classification_report(y_test, y_pred)
-
-print(f'Accuracy: {accuracy}')
-print(f'Confusion Matrix:\n{conf_matrix}')
-print(f'Classification Report:\n{report}')
-
-word_counts = np.array(X.sum(axis=0)).flatten()
-print(word_counts)
-
-ncc = NaiveCredalClassifier()
-test = ncc.fit(X_train, y_train)
-y_pred = ncc.predict(X_test,'ham','spam')
-print(y_pred,y_test)
-def calculate_accuracy(y_true, y_pred):
-    correct = 0
-    total = 0
-
-    for true, pred in zip(y_true, y_pred):
-        if pred is not None:  # Only consider non-None predictions
-            total += 1
-            if true == pred:
-                correct += 1
-
-    if total > 0:
-        accuracy = correct / total
+def model_predict(model, X, default_classes=None):
+    """Adapts the predict call based on the model type."""
+    if isinstance(model, NaiveCredalClassifier):
+        if default_classes is None:
+            raise ValueError("default_classes must be provided for NaiveCredalClassifier")
+        return model.predict(X, *default_classes)
     else:
-        accuracy = 0  # Handle case where all predictions are None
+        return model.predict(X)
+
+def evaluate_model(model, X_test, y_test, default_classes=('ham', 'spam')):
+    """Evaluate the given model on the test set and print out performance metrics."""
+    y_pred = model_predict(model, X_test, default_classes=default_classes)
+
+    # Handle None predictions for models that might return them, such as NCC
+    valid_indices = [i for i, pred in enumerate(y_pred) if pred is not None]
+    y_pred_filtered = [y_pred[i] for i in valid_indices] if valid_indices else y_pred
+    y_test_filtered = y_test.iloc[valid_indices] if valid_indices else y_test
+
+    print(f"\nEvaluating {model.__class__.__name__}")
+    print(f"Accuracy (excluding 'None' predictions): {accuracy_score(y_test_filtered, y_pred_filtered)* 100:.2f}%")
+    print("Confusion Matrix (excluding 'None' predictions):\n", confusion_matrix(y_test_filtered, y_pred_filtered))
+    print("Classification Report (excluding 'None' predictions):\n", classification_report(y_test_filtered, y_pred_filtered))
     
-    return accuracy
+    if valid_indices:  # Only relevant for models that can return None predictions
+        print(f"Percentage of determinant predictions: {len(valid_indices) / len(y_pred) * 100:.2f}%")
 
-# Assuming y_test holds the true labels for your test set
-accuracy = calculate_accuracy(y_test, y_pred)
-print("Accuracy (excluding 'None' predictions):", accuracy)
+def main():
+    start_time = time.time()
 
-import numpy as np
+    # Define paths to the data
+    easy_ham_path = 'SpamCorpus/easy_ham'
+    hard_ham_path = 'SpamCorpus/hard_ham'
+    spam_path = 'SpamCorpus/spam'
 
-def extended_confusion_matrix(y_true, y_pred, labels):
-    num_classes = 2
-    # Initialize the confusion matrix with an extra row and column for 'None' predictions
-    cm = np.zeros((num_classes + 1, num_classes + 1), dtype=int)
-    
-    # Map labels to indices including 'None'
-    label_to_index = {label: index for index, label in enumerate(labels)}
-    label_to_index[None] = num_classes  # 'None' label index
-    
-    # Populate the confusion matrix
-    for true, pred in zip(y_true, y_pred):
-        true_index = label_to_index.get(true, num_classes)  # Handle unseen labels as 'None'
-        pred_index = label_to_index.get(pred, num_classes)  # Handle 'None' predictions
-        cm[true_index, pred_index] += 1
-    
-    return cm
+    # Prepare and split the data
+    X_train, X_test, y_train, y_test = prepare_data(easy_ham_path, hard_ham_path, spam_path)
 
-cm = extended_confusion_matrix(y_test, y_pred,['ham','spam'])
-print("Confusion Matrix:", cm)
+    nbc = MultinomialNB()
+    ncc = NaiveCredalClassifier()
 
+    nbc.fit(X_train, y_train)
+    ncc.fit(X_train, y_train)
 
-'''
-# 5. Evaluate the model
-accuracy = accuracy_score(y_test[0:10], y_pred)
-conf_matrix = confusion_matrix(y_test[0:10], y_pred)
-report = classification_report(y_test[0:10], y_pred)
-elapsed = time.time() - start_time
-print(f"Time elapsed: {elapsed} seconds")'''
+    evaluate_model(nbc, X_test, y_test)
+    evaluate_model(ncc, X_test, y_test)
+
+    print(f"Time elapsed: {time.time() - start_time:.2f} seconds")
+
+if __name__ == "__main__":
+    main()

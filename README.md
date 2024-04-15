@@ -47,7 +47,7 @@ classifier.fit(X_train, y_train)
 # Make predictions (assuming X_test is your test feature matrix)
 predictions = classifier.predict(X_test, 'class1', 'class2')
 print(predictions)
-
+```
 
 ## Dataset
 The project uses a publicly available email dataset, which contains a mix of spam and non-spam emails. The dataset has been preprocessed to suit the requirements of Naive Credal Classifiers.

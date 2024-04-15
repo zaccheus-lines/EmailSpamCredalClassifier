@@ -5,7 +5,7 @@ from scipy.optimize import minimize
 from scipy.sparse import csr_matrix
 
 class NaiveCredalClassifier(BaseEstimator, ClassifierMixin):
-    def __init__(self, alpha=1.0):
+    def __init__(self, e = 0.5, s=1):
         """
         Initialize the Naive Credal Classifier with Laplace smoothing.
         """
@@ -15,8 +15,8 @@ class NaiveCredalClassifier(BaseEstimator, ClassifierMixin):
         self.C = None
         self.label_encoder_ = None
         self.word_counts_per_class={}
-        self.epsilon = 0.5
-        self.s = 1
+        self.epsilon = e
+        self.s = s
 
     def inf(self, x, row, c1, c2):
         q = (self.k-1) * np.log((self.n_c[c2] + x) / (self.n_c[c1] + self.s+(1 - x)))
@@ -63,10 +63,10 @@ class NaiveCredalClassifier(BaseEstimator, ClassifierMixin):
 
             for attempt in range(2):  
                 # Optimise 'inf' for the current row using the current classes
-                res = minimize(self.inf, x0=(self.s/2), args=(n_i, classes[0], classes[1]), bounds=[(self.epsilon, self.s*(1-self.epsilon))])
+                res = minimize(self.inf, x0=(self.s/2), args=(n_i, classes[0], classes[1]), bounds=[(self.epsilon, self.s)])
                 optimal_x = res.x
 
-                # Use optimal_x to calculate the optimized 'inf' value for the row
+                # Use optimal_x to calculate the optimised 'inf' value for the row
                 optimised_inf = self.inf(optimal_x, n_i, classes[0], classes[1])
 
                 # Check the condition and assign the predicted class to the row

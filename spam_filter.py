@@ -9,6 +9,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 from sklearn.naive_bayes import MultinomialNB
 from NCC import NaiveCredalClassifier
+import random
+import numpy as np 
+from scipy.stats import norm
 
 def safe_decode(payload, encoding='ISO-8859-1'):
     """Safely decode the payload with the given encoding."""
@@ -54,7 +57,7 @@ def parse_email(email_text, label):
         'Label': [label]
     })
 
-def prepare_data(easy_ham_path, hard_ham_path, spam_path):
+def prepare_data(r, easy_ham_path, hard_ham_path, spam_path):
     """Prepare the dataset by reading emails, parsing, and vectorising the content."""
     # Read and label the datasets from specified folders
     easy_ham_emails = read_folder(easy_ham_path).assign(label='ham')
@@ -73,7 +76,7 @@ def prepare_data(easy_ham_path, hard_ham_path, spam_path):
     X = vectoriser.fit_transform(df['Content'])
     y = df['Label']
 
-    return train_test_split(X, y, test_size=0.1, random_state=10, stratify=y)
+    return train_test_split(X, y, test_size=0.05, random_state=r, stratify=y)
 
 def model_predict(model, X, default_classes=None):
     """Adapts the predict call based on the model type."""
@@ -86,20 +89,40 @@ def model_predict(model, X, default_classes=None):
 
 def evaluate_model(model, X_test, y_test, default_classes=('ham', 'spam')):
     """Evaluate the given model on the test set and print out performance metrics."""
+
+    # Assuming model_predict is a function that handles model prediction
     y_pred = model_predict(model, X_test, default_classes=default_classes)
 
-    # Handle None predictions for models that might return them, such as NCC
+    # Identify valid (non-None) predictions
     valid_indices = [i for i, pred in enumerate(y_pred) if pred is not None]
     y_pred_filtered = [y_pred[i] for i in valid_indices] if valid_indices else y_pred
     y_test_filtered = y_test.iloc[valid_indices] if valid_indices else y_test
 
+    # Calculate Accuracy
+    accuracy = accuracy_score(y_test_filtered, y_pred_filtered) if valid_indices else 0
+    n = len(y_pred_filtered)  # Number of non-None predictions
+    if n > 0:
+        acc_std_error = np.sqrt(accuracy * (1 - accuracy) / n)
+        acc_confidence_interval = 1.96 * acc_std_error
+
+    # Calculate Determinacy
+    total_predictions = len(y_pred)
+    determinacy = len(valid_indices) / total_predictions
+    det_std_error = np.sqrt(determinacy * (1 - determinacy) / total_predictions)
+    det_confidence_interval = 1.96 * det_std_error
+
+    # Print Results
     print(f"\nEvaluating {model.__class__.__name__}")
-    print(f"Accuracy (excluding 'None' predictions): {accuracy_score(y_test_filtered, y_pred_filtered)* 100:.2f}%")
+    print(f"Accuracy (excluding 'None' predictions): {accuracy * 100:.2f}%")
+    print(f"95% Confidence Interval for Accuracy: [{(accuracy - acc_confidence_interval) * 100:.2f}%, {(accuracy + acc_confidence_interval) * 100:.2f}%]")
+    print(f"Determinacy of predictions: {determinacy * 100:.2f}%")
+    print(f"95% Confidence Interval for Determinacy: [{(determinacy - det_confidence_interval) * 100:.2f}%, {(determinacy + det_confidence_interval) * 100:.2f}%]")
     print("Confusion Matrix (excluding 'None' predictions):\n", confusion_matrix(y_test_filtered, y_pred_filtered))
     print("Classification Report (excluding 'None' predictions):\n", classification_report(y_test_filtered, y_pred_filtered))
-    
-    if valid_indices:  # Only relevant for models that can return None predictions
+
+    if valid_indices:
         print(f"Percentage of determinant predictions: {len(valid_indices) / len(y_pred) * 100:.2f}%")
+
 
 def main():
     start_time = time.time()
@@ -109,17 +132,23 @@ def main():
     hard_ham_path = 'SpamCorpus/hard_ham'
     spam_path = 'SpamCorpus/spam'
 
-    # Prepare and split the data
-    X_train, X_test, y_train, y_test = prepare_data(easy_ham_path, hard_ham_path, spam_path)
+    
 
     nbc = MultinomialNB()
-    ncc = NaiveCredalClassifier()
 
-    nbc.fit(X_train, y_train)
-    ncc.fit(X_train, y_train)
+    for e in range(1,5):
+        # Prepare and split the data
+        r = random.randint(1,50)
+        X_train, X_test, y_train, y_test = prepare_data(r, easy_ham_path, hard_ham_path, spam_path)
+        print(f'Epsilon: {e/100}') 
+        ncc = NaiveCredalClassifier(e=e/100)                                   
 
-    evaluate_model(nbc, X_test, y_test)
-    evaluate_model(ncc, X_test, y_test)
+        nbc.fit(X_train, y_train)
+        ncc.fit(X_train, y_train)
+
+        evaluate_model(nbc, X_test, y_test)
+        evaluate_model(ncc, X_test, y_test)
+
 
     print(f"Time elapsed: {time.time() - start_time:.2f} seconds")
 

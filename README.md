@@ -1,5 +1,3 @@
-# Email Spam Filtering using Naive Credal Classifiers
-
 # Naive Credal Classifier
 
 The Naive Credal Classifier (NCC) is an extension of the traditional Naive Bayes classifier that incorporates elements of imprecise probabilities to better handle uncertainty in classification tasks. This implementation is particularly useful in scenarios where the class distributions are not well defined or when dealing with sparse data sets.

@@ -134,19 +134,18 @@ def main():
 
     
 
-    nbc = MultinomialNB()
+    #nbc = MultinomialNB()
 
     for e in range(1,5):
         # Prepare and split the data
         r = random.randint(1,50)
         X_train, X_test, y_train, y_test = prepare_data(r, easy_ham_path, hard_ham_path, spam_path)
         print(f'Epsilon: {e/100}') 
-        ncc = NaiveCredalClassifier(e=e/100)                                   
-
-        nbc.fit(X_train, y_train)
+        ncc = NaiveCredalClassifier(e=e/100)                                     
+        #nbc.fit(X_train, y_train)
         ncc.fit(X_train, y_train)
 
-        evaluate_model(nbc, X_test, y_test)
+        #evaluate_model(nbc, X_test, y_test)
         evaluate_model(ncc, X_test, y_test)
 
 

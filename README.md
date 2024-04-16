@@ -6,7 +6,6 @@ The Naive Credal Classifier (NCC) is an extension of the traditional Naive Bayes
 
 - **Robust to Sparse Data:** Ideal for datasets where classes are not perfectly separable or have overlapping features.
 - **Imprecise Probabilities:** Utilises credal sets for managing uncertainty in class definitions.
-- **Customizable Smoothing:** Supports Laplace smoothing with customizable `epsilon` and `s` parameters to stabilize likelihood estimates in the face of sparse data.
 
 ## Installation
 

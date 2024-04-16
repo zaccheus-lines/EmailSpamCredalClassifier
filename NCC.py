@@ -53,7 +53,7 @@ class NaiveCredalClassifier(BaseEstimator, ClassifierMixin):
         classes = [c1, c2]
         for i in range(m):
             row_array = X[i, :].toarray().flatten()
-            print(row_array,i)
+            #print(row_array,i)
 
             n_i = {}
             for c in classes:

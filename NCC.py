@@ -5,25 +5,28 @@ from scipy.optimize import minimize
 from scipy.sparse import csr_matrix
 
 class NaiveCredalClassifier(BaseEstimator, ClassifierMixin):
-    def __init__(self, e = 0.5, s=1):
+    def __init__(self, epsilon = 0.5, s=0.5):
         """
         Initialize the Naive Credal Classifier with Laplace smoothing.
         """
         self.N =None
         self.k=None
         self.n_c=None
-        self.C = None
+        self.classes_ = None
         self.label_encoder_ = None
         self.word_counts_per_class={}
-        self.epsilon = e
+        self.epsilon = epsilon
         self.s = s
 
+    import numpy as np
+
     def inf(self, x, row, c1, c2):
-        q = (self.k-1) * np.log((self.n_c[c2] + x) / (self.n_c[c1] + self.s+(1 - x)))
-        prod = 0
-        for i in range(self.k):
-            prod += np.log((row[c1][i])+self.epsilon) - np.log((row[c2][i] + x))
-        return (q + prod)
+        q = (self.k - 1) * np.log((self.n_c[c2] + x) / (self.n_c[c1] + self.s + (1 - x)))
+        term1 = np.log(row[c1] + self.epsilon)
+        term2 = np.log(row[c2] + x)
+        prod = np.sum(term1 - term2)
+        return q + prod
+
     
     def fit(self, X, y):
         """
@@ -31,7 +34,7 @@ class NaiveCredalClassifier(BaseEstimator, ClassifierMixin):
         """
         self.label_encoder_ = LabelEncoder()
         y_encoded = self.label_encoder_.fit_transform(y)
-        self.C= self.label_encoder_.classes_
+        self.classes_= self.label_encoder_.classes_
 
         self.N, self.k = X.shape
         unique_classes, class_counts = np.unique(y, return_counts=True)
@@ -39,7 +42,7 @@ class NaiveCredalClassifier(BaseEstimator, ClassifierMixin):
 
         word_counts_per_class = {}
 
-        for c in self.C:
+        for c in self.classes_:
             X_c = X[y == c]
         
             word_counts = np.array(X_c.sum(axis=0)).flatten()
@@ -53,7 +56,7 @@ class NaiveCredalClassifier(BaseEstimator, ClassifierMixin):
         classes = [c1, c2]
         for i in range(m):
             row_array = X[i, :].toarray().flatten()
-            #print(row_array,i)
+            #print(row_array,i) 
 
             n_i = {}
             for c in classes:
@@ -80,3 +83,11 @@ class NaiveCredalClassifier(BaseEstimator, ClassifierMixin):
                 predictions.append(None)
 
         return np.array(predictions)  # Return an array of predictions for all rows
+
+    def get_params(self, deep=True):
+        return {'epsilon': self.epsilon, 's': self.s}
+
+    def set_params(self, **parameters):
+        for parameter, value in parameters.items():
+            setattr(self, parameter, value)
+        return self

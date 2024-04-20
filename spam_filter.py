@@ -12,6 +12,8 @@ from NCC import NaiveCredalClassifier
 import random
 import numpy as np 
 from scipy.stats import norm
+from sklearn.model_selection import KFold
+
 
 def safe_decode(payload, encoding='ISO-8859-1'):
     """Safely decode the payload with the given encoding."""
@@ -57,7 +59,7 @@ def parse_email(email_text, label):
         'Label': [label]
     })
 
-def prepare_data(r, easy_ham_path, hard_ham_path, spam_path):
+def prepare_data(easy_ham_path = 'SpamCorpus/easy_ham', hard_ham_path='SpamCorpus/hard_ham', spam_path= 'SpamCorpus/spam'):
     """Prepare the dataset by reading emails, parsing, and vectorising the content."""
     # Read and label the datasets from specified folders
     easy_ham_emails = read_folder(easy_ham_path).assign(label='ham')
@@ -76,7 +78,7 @@ def prepare_data(r, easy_ham_path, hard_ham_path, spam_path):
     X = vectoriser.fit_transform(df['Content'])
     y = df['Label']
 
-    return train_test_split(X, y, test_size=0.05, random_state=r, stratify=y)
+    return X,y
 
 def model_predict(model, X, default_classes=None):
     """Adapts the predict call based on the model type."""
@@ -112,42 +114,61 @@ def evaluate_model(model, X_test, y_test, default_classes=('ham', 'spam')):
     det_confidence_interval = 1.96 * det_std_error
 
     # Print Results
-    print(f"\nEvaluating {model.__class__.__name__}")
-    print(f"Accuracy (excluding 'None' predictions): {accuracy * 100:.2f}%")
-    print(f"95% Confidence Interval for Accuracy: [{(accuracy - acc_confidence_interval) * 100:.2f}%, {(accuracy + acc_confidence_interval) * 100:.2f}%]")
-    print(f"Determinacy of predictions: {determinacy * 100:.2f}%")
-    print(f"95% Confidence Interval for Determinacy: [{(determinacy - det_confidence_interval) * 100:.2f}%, {(determinacy + det_confidence_interval) * 100:.2f}%]")
-    print("Confusion Matrix (excluding 'None' predictions):\n", confusion_matrix(y_test_filtered, y_pred_filtered))
-    print("Classification Report (excluding 'None' predictions):\n", classification_report(y_test_filtered, y_pred_filtered))
+    #print(f"\nEvaluating {model.__class__.__name__}")
+    print(f"Single Accuracy: {accuracy * 100:.2f}% ± {acc_confidence_interval*100:.2f}")
+    print(f"Determinacy: {determinacy * 100:.2f}% ± {det_confidence_interval*100:.2f}")
 
-    if valid_indices:
-        print(f"Percentage of determinant predictions: {len(valid_indices) / len(y_pred) * 100:.2f}%")
+    #print("Confusion Matrix (excluding 'None' predictions):\n", confusion_matrix(y_test_filtered, y_pred_filtered))
+    #print("Classification Report (excluding 'None' predictions):\n", classification_report(y_test_filtered, y_pred_filtered))
+    return accuracy, determinacy
 
+def k_fold(X, y, model, n_splits=10, shuffle=True, random_state=42):
+    kf = KFold(n_splits=n_splits, shuffle=shuffle, random_state=random_state)
+    accuracies = []
+    determinacies =[]
 
-def main():
-    start_time = time.time()
+    # Ensure y is suitable for indexing
+    y = pd.Series(y).reset_index(drop=True)
 
-    # Define paths to the data
-    easy_ham_path = 'SpamCorpus/easy_ham'
-    hard_ham_path = 'SpamCorpus/hard_ham'
-    spam_path = 'SpamCorpus/spam'
+    for train_index, test_index in kf.split(X):
+        X_train, X_test = X[train_index], X[test_index]
+        y_train, y_test = y.iloc[train_index], y.iloc[test_index]
 
-    
+        model.fit(X_train, y_train)
 
-    #nbc = MultinomialNB()
+        accuracy, determinacy = evaluate_model(model, X_test,y_test)
+        accuracies.append(accuracy)
+        determinacies.append(determinacy)
 
-    for e in range(1,5):
-        # Prepare and split the data
-        r = random.randint(1,50)
-        X_train, X_test, y_train, y_test = prepare_data(r, easy_ham_path, hard_ham_path, spam_path)
-        print(f'Epsilon: {e/100}') 
-        ncc = NaiveCredalClassifier(e=e/100)                                     
-        #nbc.fit(X_train, y_train)
+    return np.mean(accuracies), np.std(accuracies), np.mean(determinacies), np.std(determinacies)
+
+def epsilon_test(X,y, seed=50):
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, random_state=seed, stratify=y)
+    for e in range(1,11):
+        print(f'epislon: {e/20}') 
+        ncc = NaiveCredalClassifier(epsilon= e/20, s=0.5)                                        
         ncc.fit(X_train, y_train)
-
-        #evaluate_model(nbc, X_test, y_test)
         evaluate_model(ncc, X_test, y_test)
 
+def s_test(X,y, seed=35):
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, random_state=seed, stratify=y)
+    for s in range(6,22,2):
+        print(f's: {s/10}') 
+        ncc = NaiveCredalClassifier(epsilon= 0.1, s=s/10)                                        
+        ncc.fit(X_train, y_train)
+        evaluate_model(ncc, X_test, y_test)
+
+def main():
+
+    start_time = time.time()
+    r = random.randint(1,50)
+    X, y = prepare_data()
+    
+    epsilon_test(X,y,50)
+    
+    #print(k_fold(X,y,ncc))
+    
+    
 
     print(f"Time elapsed: {time.time() - start_time:.2f} seconds")
 

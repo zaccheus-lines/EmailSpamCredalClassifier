@@ -5,7 +5,7 @@ from scipy.optimize import minimize
 from scipy.sparse import csr_matrix
 
 class NaiveCredalClassifier(BaseEstimator, ClassifierMixin):
-    def __init__(self, epsilon = 0.5, s=0.5):
+    def __init__(self, epsilon = 0.5, s=0.5, dominance='credal'):
         """
         Initialize the Naive Credal Classifier with Laplace smoothing.
         """
@@ -17,6 +17,7 @@ class NaiveCredalClassifier(BaseEstimator, ClassifierMixin):
         self.word_counts_per_class={}
         self.epsilon = epsilon
         self.s = s
+        self.dominance = dominance
 
     import numpy as np
 
@@ -51,6 +52,14 @@ class NaiveCredalClassifier(BaseEstimator, ClassifierMixin):
         return self
 
     def predict(self, X, c1, c2):
+        if self.dominance == 'stoch':
+            return self.stoch_predict(X, c1, c2)
+        elif self.dominance == 'credal':
+            return self.credal_predict(X, c1, c2)
+        else:
+            raise ValueError("Unknown dominance type specified. Choose 'stoch' or 'credal'.")
+
+    def credal_predict(self, X, c1, c2):
         m, n = X.shape
         predictions = [] 
         classes = [c1, c2]
@@ -82,7 +91,41 @@ class NaiveCredalClassifier(BaseEstimator, ClassifierMixin):
             else:
                 predictions.append(None)
 
+    
         return np.array(predictions)  # Return an array of predictions for all rows
+    
+    def stoch_predict(self, X, c1, c2):
+        m, n = X.shape
+        predictions = [] 
+        classes = [c1, c2]
+        for i in range(m):
+            row_array = X[i, :].toarray().flatten()
+
+            n_i = {}
+            for c in classes:
+                a = self.word_counts_per_class[c] * row_array
+                b = (self.n_c[c] - self.word_counts_per_class[c]) * (1 - row_array)
+                n_i[c] = a + b
+
+            for attempt in range(2):
+                # Calculate the bounds for the first class
+                lower_bound_c1 = -(self.k - 1)* np.log((self.n_c[classes[0]] + self.s)) + np.sum(np.log(n_i[classes[0]]+ self.epsilon))
+                # Calculate the bounds for the second class
+                upper_bound_c2 = -(self.k - 1)* np.log((self.n_c[classes[1]] + self.s)) + np.sum(np.log(n_i[classes[1]]+ self.s))
+
+                # Compare the bounds to make a prediction
+                if lower_bound_c1 > upper_bound_c2:
+                    predictions.append(classes[0])
+                    break
+                else:
+                    # Swap the classes for the second attempt
+                    classes.reverse()
+            else:
+                # Append None if no class dominates after two attempts
+                predictions.append(None)
+
+        return np.array(predictions)  # Return an array of predictions for all rows
+
 
     def get_params(self, deep=True):
         return {'epsilon': self.epsilon, 's': self.s}

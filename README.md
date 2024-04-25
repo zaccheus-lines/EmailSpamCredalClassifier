@@ -36,7 +36,7 @@ To integrate and use the Naive Credal Classifier in your Python projects, follow
 from NCC import NaiveCredalClassifier
 
 # Initialize the classifier with custom epsilon and s values
-classifier = NaiveCredalClassifier(e=0.5, s=1)
+classifier = NaiveCredalClassifier(e=0.25, s=1, dominance = 'credal')
 
 # Fit the model to your data (assume X_train and y_train are your features and labels)
 classifier.fit(X_train, y_train)

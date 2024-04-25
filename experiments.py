@@ -178,8 +178,8 @@ def s_test(X,y, seed = 50):
 
 def comparison(X, y, seed=50):
     # Initialise classifiers
-    ncc_credal = NaiveCredalClassifier(epsilon=0.01, s=1, dominance = "credal")
-    ncc_stochastic = NaiveCredalClassifier(epsilon=0.01, s=1, dominance="stoch")
+    ncc_credal = NaiveCredalClassifier(epsilon=0.25, s=1, dominance = "credal")
+    ncc_stochastic = NaiveCredalClassifier(epsilon=0.25, s=1, dominance="stoch")
     nbc = MultinomialNB()
 
     # Comparing Naive Credal Classifier (Credal Dominance) results

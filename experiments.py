@@ -144,26 +144,42 @@ def k_fold_cross_validation(X, y, model, seed=1, n_splits=5, shuffle=True):
 
     return np.mean(accuracies), np.std(accuracies), np.mean(determinacies), np.std(determinacies), indeterminate_X, indeterminate_y
 
-def epsilon_test(X, y, seed=50):
+def epsilon_test(X, y, seed=50, dominance = 'credal'):
     for e in range(1,11):
-        print(f'epislon: {e/20}') 
-        ncc = NaiveCredalClassifier(epsilon= e/20, s=0.5)   
+        print(f'epsilon: {e/40}') 
+
+        print('Credal')
+        ncc = NaiveCredalClassifier(epsilon= e/40, s=1, dominance='credal')   
+        acc, acc_sd, det, det_sd,_ ,_ = k_fold_cross_validation(X,y, ncc, seed = seed)    
+        print(f"K-fold Single Accuracy: {acc:.2%} ± {acc_sd:.2%}")
+        print(f"K-fold Deteminacy: {det:.2%} ± {det_sd:.2%}")
+
+        print('Interval')
+        ncc = NaiveCredalClassifier(epsilon= e/20, s=1, dominance='stoch')   
         acc, acc_sd, det, det_sd,_ ,_ = k_fold_cross_validation(X,y, ncc, seed = seed)    
         print(f"K-fold Single Accuracy: {acc:.2%} ± {acc_sd:.2%}")
         print(f"K-fold Deteminacy: {det:.2%} ± {det_sd:.2%}")
 
 def s_test(X,y, seed = 50):
-    for s in range(2,13):
-        print(f's: {s/4}') 
-        ncc = NaiveCredalClassifier(epsilon= 0.5, s=s/4)   
+    for s in range(1,11):
+        print(f's: {s/2}')
+
+        print('Credal') 
+        ncc = NaiveCredalClassifier(epsilon= 0.25, s=s/2, dominance = 'credal') 
+        acc, acc_sd, det, det_sd, _, _ = k_fold_cross_validation(X,y, ncc, seed = seed)    
+        print(f"K-fold Single Accuracy: {acc:.2%} ± {acc_sd:.2%}")
+        print(f"K-fold Deteminacy: {det:.2%} ± {det_sd:.2%}")
+
+        print('Stochastic')   
+        ncc = NaiveCredalClassifier(epsilon= 0.25, s=s/2, dominance = 'stoch') 
         acc, acc_sd, det, det_sd, _, _ = k_fold_cross_validation(X,y, ncc, seed = seed)    
         print(f"K-fold Single Accuracy: {acc:.2%} ± {acc_sd:.2%}")
         print(f"K-fold Deteminacy: {det:.2%} ± {det_sd:.2%}")
 
 def comparison(X, y, seed=50):
-    # Initialize classifiers
-    ncc_credal = NaiveCredalClassifier(epsilon=0.5, s=1, dominance="credal")
-    ncc_stochastic = NaiveCredalClassifier(epsilon=0.5, s=1, dominance="stoch")
+    # Initialise classifiers
+    ncc_credal = NaiveCredalClassifier(epsilon=0.01, s=1, dominance = "credal")
+    ncc_stochastic = NaiveCredalClassifier(epsilon=0.01, s=1, dominance="stoch")
     nbc = MultinomialNB()
 
     # Comparing Naive Credal Classifier (Credal Dominance) results
@@ -183,8 +199,8 @@ def comparison(X, y, seed=50):
 
     # Analysing cases where NCC (Credal Dominance) was indeterminate
     ind_acc_nbc, ind_acc_sd_nbc, ind_det_nbc, ind_det_sd_nbc, _, _= k_fold_cross_validation(credal_indeterminate_X, credal_indeterminate_y, nbc, seed=seed)
-    print(f"NBC - K-fold Single Accuracy (Indeterminate Cases): {ind_acc_nbc:.2%} ± {ind_acc_sd_nbc:.2%}")
-    print(f"NBC - K-fold Determinacy (Indeterminate Cases): {ind_det_nbc:.2%} ± {ind_det_sd_nbc:.2%}")
+    print(f"NBC - K-fold Single Accuracy (Credal Indeterminate Cases): {ind_acc_nbc:.2%} ± {ind_acc_sd_nbc:.2%}")
+    print(f"NBC - K-fold Determinacy (Credal Indeterminate Cases): {ind_det_nbc:.2%} ± {ind_det_sd_nbc:.2%}")
 
 
 def main():
@@ -192,11 +208,11 @@ def main():
     start_time = time.time()
     X, y = prepare_data()
 
-    #dom_comparison(X,y,seed=50)
+    #epsilon_test(X,y, seed = 5)
 
-    #epsilon_test(X,y)
-    #s_test(X,y)
-    comparison(X,y,seed=50)
+    #s_test(X,y,seed=5)
+
+    comparison(X,y, seed=5)
 
     print(f"Time elapsed: {time.time() - start_time:.2f} seconds")
 

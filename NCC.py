@@ -5,7 +5,7 @@ from scipy.optimize import minimize
 from scipy.sparse import csr_matrix
 
 class NaiveCredalClassifier(BaseEstimator, ClassifierMixin):
-    def __init__(self, epsilon = 0.5, s=0.5, dominance='credal'):
+    def __init__(self, epsilon = 0.01, s=0.5, dominance='credal'):
         """
         Initialize the Naive Credal Classifier with Laplace smoothing.
         """
@@ -19,14 +19,12 @@ class NaiveCredalClassifier(BaseEstimator, ClassifierMixin):
         self.s = s
         self.dominance = dominance
 
-    import numpy as np
-
     def inf(self, x, row, c1, c2):
-        q = (self.k - 1) * np.log((self.n_c[c2] + x) / (self.n_c[c1] + self.s + (1 - x)))
-        term1 = np.log(row[c1] + self.epsilon)
+        quot = (self.k - 1) * (np.log((self.n_c[c2] + x)) - np.log(self.n_c[c1] + self.s - x))
+        term1 = np.log(row[c1] + self.s*self.epsilon)
         term2 = np.log(row[c2] + x)
         prod = np.sum(term1 - term2)
-        return q + prod
+        return quot + prod
 
     
     def fit(self, X, y):
@@ -75,7 +73,7 @@ class NaiveCredalClassifier(BaseEstimator, ClassifierMixin):
 
             for attempt in range(2):  
                 # Optimise 'inf' for the current row using the current classes
-                res = minimize(self.inf, x0=(self.s/2), args=(n_i, classes[0], classes[1]), bounds=[(self.epsilon, self.s)])
+                res = minimize(self.inf, x0=0.75, args=(n_i, classes[0], classes[1]), bounds=[(self.s*self.epsilon, self.s)])
                 optimal_x = res.x
 
                 # Use optimal_x to calculate the optimised 'inf' value for the row
@@ -109,7 +107,7 @@ class NaiveCredalClassifier(BaseEstimator, ClassifierMixin):
 
             for attempt in range(2):
                 # Calculate the bounds for the first class
-                lower_bound_c1 = -(self.k - 1)* np.log((self.n_c[classes[0]] + self.s)) + np.sum(np.log(n_i[classes[0]]+ self.epsilon))
+                lower_bound_c1 = -(self.k - 1)* np.log((self.n_c[classes[0]] + self.s)) + np.sum(np.log(n_i[classes[0]]+ self.s*self.epsilon))
                 # Calculate the bounds for the second class
                 upper_bound_c2 = -(self.k - 1)* np.log((self.n_c[classes[1]] + self.s)) + np.sum(np.log(n_i[classes[1]]+ self.s))
 
